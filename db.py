@@ -11,7 +11,11 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "sabytu.db")
 
 def get_conn():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
+    # WAL: permite leitura (site) e escrita (coletores) acontecendo ao
+    # mesmo tempo sem travar uma a outra — resolve "database is locked"
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=15000")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mencoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
