@@ -20,6 +20,15 @@ TOPICOS = {
     "novela":         {"regex": r"\bnovela\b|final da novela",        "emoji": "📺", "nome": "Novela",         "wiki": None},
     "serie":          {"regex": r"\bs[eé]rie\b|nova temporada",       "emoji": "🎬", "nome": "Série do momento", "wiki": None},
     "meme":           {"regex": r"\bmeme\b|viralizou|\bviral\b",      "emoji": "😂", "nome": "Meme do momento", "wiki": None},
+    "cinema":         {"regex": r"\bcinema\b|estreia nos cinemas",    "emoji": "🎥", "nome": "Cinema",         "wiki": None},
+    "show_ingresso":  {"regex": r"\bingresso\b|\bshow\b",             "emoji": "🎤", "nome": "Show/Ingresso",  "wiki": None},
+    "notebook":       {"regex": r"\bnotebook\b|laptop",               "emoji": "💻", "nome": "Notebook",       "wiki": None},
+    "moda":           {"regex": r"\bmoda\b|tend[eê]ncia de roupa",    "emoji": "👕", "nome": "Roupa/Moda",     "wiki": None},
+    "dolar":          {"regex": r"\bd[oó]lar\b|c[aâ]mbio",            "emoji": "💵", "nome": "Dólar",          "wiki": None},
+    "conta_de_luz":   {"regex": r"conta de luz|bandeira tarif[aá]ria","emoji": "💡", "nome": "Conta de luz",   "wiki": None},
+    "chuva_clima":    {"regex": r"\bchuva\b|temporal|previs[aã]o do tempo", "emoji": "🌧️", "nome": "Chuva/Clima", "wiki": None},
+    "transporte":     {"regex": r"\b[oô]nibus\b|transporte p[uú]blico","emoji": "🚌", "nome": "Transporte",     "wiki": None},
+    "viagem":         {"regex": r"\bviagem\b|pacote de viagem",       "emoji": "🧳", "nome": "Viagem/Turismo", "wiki": None},
 }
 
 TOPICOS_RE = {k: re.compile(v["regex"], re.IGNORECASE) for k, v in TOPICOS.items()}
