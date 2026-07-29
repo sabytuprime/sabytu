@@ -10,7 +10,7 @@ import os
 
 from flask import Flask, jsonify
 
-from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos
+from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao
 from topicos import TOPICOS
 from collectors.wikipedia_baseline import carregar_baseline, atualizar_baselines
 from collectors.rss_collector import rodar_loop as rodar_rss
@@ -28,9 +28,11 @@ def calcular_score(contagem_agora, baseline_hora):
     Sem entropia, sem aceleração — só proporção real, defensável.
     """
     if baseline_hora <= 0:
+        # sem histórico suficiente ainda: usa contagem bruta capada em 100
         return min(100, contagem_agora * 10)
 
     razao = contagem_agora / baseline_hora
+    # mapeia razão (0x a 5x+ o normal) pra escala 0-100
     score = min(100, int(razao * 20))
     return score
 
@@ -45,6 +47,7 @@ def api_radar():
             contagem_hora = contar_mencoes(conn, slug, JANELA_AGORA_SEGUNDOS)
             baseline_hora = contar_mencoes_baseline(conn, slug, dias=7)
             score = calcular_score(contagem_hora, baseline_hora)
+            acelerando = calcular_aceleracao(conn, slug)
 
             resultado.append({
                 "slug": slug,
@@ -53,6 +56,7 @@ def api_radar():
                 "score": score,
                 "mencoes_ultima_hora": contagem_hora,
                 "media_historica_hora": round(baseline_hora, 1),
+                "acelerando": acelerando,
             })
 
         resultado.sort(key=lambda x: x["score"], reverse=True)
@@ -62,6 +66,7 @@ def api_radar():
             "topicos": resultado,
         })
     except Exception as e:
+        # nunca deixa o site quebrar por causa de um erro momentâneo de banco
         print(f"[erro /api/radar] {e}")
         return jsonify({"atualizado_em": time.time(), "topicos": [], "aviso": "temporariamente indisponivel"}), 200
 
@@ -107,11 +112,12 @@ def iniciar_coletores_em_background():
                 limpar_antigos(get_conn())
             except Exception as e:
                 print(f"[erro limpeza] {e}")
-            time.sleep(24 * 3600)
+            time.sleep(24 * 3600)  # 1x por dia
 
     threading.Thread(target=loop_wiki_e_limpeza, daemon=True).start()
 
 
+# inicia os coletores assim que o app sobe (funciona com gunicorn também)
 iniciar_coletores_em_background()
 
 
