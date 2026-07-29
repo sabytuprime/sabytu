@@ -17,6 +17,9 @@ TOPICOS = {
     "aluguel":        {"regex": r"aluguel",                           "emoji": "🏠", "nome": "Aluguel",        "wiki": None},
     "futebol":        {"regex": r"futebol|libertadores|brasileir[aã]o", "emoji": "⚽", "nome": "Futebol",       "wiki": None},
     "black_friday":   {"regex": r"black friday",                      "emoji": "🎉", "nome": "Black Friday",   "wiki": "Black_Friday"},
+    "novela":         {"regex": r"\bnovela\b|final da novela",        "emoji": "📺", "nome": "Novela",         "wiki": None},
+    "serie":          {"regex": r"\bs[eé]rie\b|nova temporada",       "emoji": "🎬", "nome": "Série do momento", "wiki": None},
+    "meme":           {"regex": r"\bmeme\b|viralizou|\bviral\b",      "emoji": "😂", "nome": "Meme do momento", "wiki": None},
 }
 
 TOPICOS_RE = {k: re.compile(v["regex"], re.IGNORECASE) for k, v in TOPICOS.items()}
