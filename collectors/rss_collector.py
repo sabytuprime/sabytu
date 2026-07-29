@@ -15,6 +15,7 @@ FEEDS = [
     "https://g1.globo.com/rss/g1/",
     "https://rss.uol.com.br/feed/noticias.xml",
     "https://feeds.folha.uol.com.br/emcimadahora/rss091.xml",
+    "http://globoesporte.globo.com/ESP/Noticia/Rss/0,,AS0-4271,00.xml",  # esporte dedicado — mais denso pra futebol/Brasileirão
 ]
 
 FREQUENCIA_SEGUNDOS = 180  # checa a cada 3 min
