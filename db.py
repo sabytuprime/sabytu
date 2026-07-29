@@ -59,6 +59,33 @@ def contar_mencoes_baseline(conn, topico, dias=7):
     return total / horas if horas > 0 else 0
 
 
+def calcular_aceleracao(conn, topico, janela_min=30):
+    """
+    Detecção real de aceleração — não é o Delt-IEt completo, mas é
+    inspirado na mesma ideia: compara a TAXA de menções da janela
+    atual com a taxa da janela anterior (a "derivada", não só o volume).
+    Retorna True se a taxa mais que dobrou entre as duas janelas.
+    """
+    agora = time.time()
+    janela_seg = janela_min * 60
+
+    cur = conn.execute(
+        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ?",
+        (topico, agora - janela_seg),
+    )
+    atual = cur.fetchone()[0]
+
+    cur = conn.execute(
+        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND timestamp < ?",
+        (topico, agora - 2 * janela_seg, agora - janela_seg),
+    )
+    anterior = cur.fetchone()[0]
+
+    if anterior == 0:
+        return atual >= 3  # sem base de comparação: só marca se já tem volume mínimo
+    return (atual / anterior) >= 2.0
+
+
 def limpar_antigos(conn, dias=14):
     """Remove menções mais velhas que N dias, pra não crescer pra sempre."""
     limite = time.time() - dias * 86400
