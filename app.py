@@ -8,9 +8,9 @@ import threading
 import time
 import os
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, request
 
-from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao
+from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao, registrar_mencao, registrar_email
 from topicos import TOPICOS
 from collectors.wikipedia_baseline import carregar_baseline, atualizar_baselines
 from collectors.rss_collector import rodar_loop as rodar_rss
@@ -85,6 +85,64 @@ def api_status():
     except Exception as e:
         print(f"[erro /api/status] {e}")
         return jsonify({"erro": "temporariamente indisponivel"}), 200
+
+
+@app.route("/api/cadastrar-email", methods=["POST"])
+def api_cadastrar_email():
+    try:
+        dados = request.get_json(force=True, silent=True) or {}
+        email = (dados.get("email") or "").strip()
+        if not email or "@" not in email or "." not in email.split("@")[-1]:
+            return jsonify({"ok": False, "erro": "email invalido"}), 400
+        conn = get_conn()
+        sucesso = registrar_email(conn, email)
+        return jsonify({"ok": sucesso})
+    except Exception as e:
+        print(f"[erro /api/cadastrar-email] {e}")
+        return jsonify({"ok": False, "erro": "erro interno"}), 200
+
+
+@app.route("/api/coleta-agente", methods=["POST"])
+def api_coleta_agente():
+    """
+    Endpoint pra receber dado coletado por agente externo (ex: Cowork
+    lendo páginas de Tendências do Mercado Livre, YouTube Em Alta etc).
+    Mesmo padrão dos coletores automáticos — grava como menção real,
+    com fonte identificada, pra manter rastreabilidade de onde veio.
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        topico = (data.get("topico") or "").strip().lower()
+        texto = (data.get("texto") or "").strip()
+        fonte = (data.get("fonte") or "agente_externo").strip()
+
+        if topico not in TOPICOS:
+            return jsonify({"ok": False, "erro": f"topico '{topico}' nao existe na watchlist"}), 400
+        if not texto:
+            return jsonify({"ok": False, "erro": "texto vazio"}), 400
+
+        conn = get_conn()
+        registrar_mencao(conn, topico, fonte, texto)
+        return jsonify({"ok": True, "topico": topico, "fonte": fonte})
+    except Exception as e:
+        print(f"[erro /api/coleta-agente] {e}")
+        return jsonify({"ok": False, "erro": "temporariamente indisponivel"}), 200
+
+
+@app.route("/api/inscrever", methods=["POST"])
+def api_inscrever():
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        email = (data.get("email") or "").strip()
+        if not email or "@" not in email or "." not in email.split("@")[-1]:
+            return jsonify({"ok": False, "erro": "email invalido"}), 400
+        conn = get_conn()
+        conn.execute("INSERT INTO inscricoes (email, timestamp) VALUES (?, ?)", (email, time.time()))
+        conn.commit()
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"[erro /api/inscrever] {e}")
+        return jsonify({"ok": False, "erro": "temporariamente indisponivel"}), 200
 
 
 @app.route("/")
