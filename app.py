@@ -8,9 +8,9 @@ import threading
 import time
 import os
 
-from flask import Flask, jsonify, request, request
+from flask import Flask, jsonify, request
 
-from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao, registrar_mencao, registrar_email
+from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao, registrar_mencao
 from topicos import TOPICOS
 from collectors.wikipedia_baseline import carregar_baseline, atualizar_baselines
 from collectors.rss_collector import rodar_loop as rodar_rss
@@ -85,21 +85,6 @@ def api_status():
     except Exception as e:
         print(f"[erro /api/status] {e}")
         return jsonify({"erro": "temporariamente indisponivel"}), 200
-
-
-@app.route("/api/cadastrar-email", methods=["POST"])
-def api_cadastrar_email():
-    try:
-        dados = request.get_json(force=True, silent=True) or {}
-        email = (dados.get("email") or "").strip()
-        if not email or "@" not in email or "." not in email.split("@")[-1]:
-            return jsonify({"ok": False, "erro": "email invalido"}), 400
-        conn = get_conn()
-        sucesso = registrar_email(conn, email)
-        return jsonify({"ok": sucesso})
-    except Exception as e:
-        print(f"[erro /api/cadastrar-email] {e}")
-        return jsonify({"ok": False, "erro": "erro interno"}), 200
 
 
 @app.route("/api/coleta-agente", methods=["POST"])
