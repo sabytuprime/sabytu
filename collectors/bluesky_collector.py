@@ -19,13 +19,13 @@ JETSTREAM_URL = "wss://jetstream2.us-east.bsky.network/subscribe?wantedCollectio
 
 
 async def coletar():
-    conn = get_conn()
     posts_vistos = 0
     posts_pt = 0
     ultimo_log = time.time()
 
     while True:  # loop de reconexão
         try:
+            conn = get_conn()
             async with websockets.connect(JETSTREAM_URL, max_size=None) as ws:
                 print("Bluesky Jetstream conectado.")
                 while True:
