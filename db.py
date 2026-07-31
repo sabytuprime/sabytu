@@ -5,54 +5,70 @@ com timestamp e fonte, pra depois calcular contagem por janela.
 import sqlite3
 import os
 import time
+import threading
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "sabytu.db")
 
 
+_inicializado = False
+_lock_inicializacao = threading.Lock()
+
+
+def _inicializar_schema():
+    """Cria as tabelas, uma única vez por processo — não a cada conexão.
+    Isso é o que estava causando disputa constante pelo banco: antes,
+    toda chamada de get_conn() tentava recriar as tabelas de novo."""
+    global _inicializado
+    with _lock_inicializacao:
+        if _inicializado:
+            return
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(DB_PATH, timeout=15)
+        for tentativa in range(5):
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=15000")
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS mencoes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        topico TEXT NOT NULL,
+                        fonte TEXT NOT NULL,
+                        texto TEXT,
+                        timestamp REAL NOT NULL
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_topico_ts ON mencoes(topico, timestamp)")
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS emails_cadastrados (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT NOT NULL UNIQUE,
+                        timestamp REAL NOT NULL
+                    )
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS inscricoes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT NOT NULL,
+                        timestamp REAL NOT NULL
+                    )
+                """)
+                conn.commit()
+                conn.close()
+                _inicializado = True
+                return
+            except sqlite3.OperationalError:
+                time.sleep(0.3 * (tentativa + 1))
+        conn.close()
+
+
 def get_conn():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    """Abre uma conexão leve. O schema já foi criado uma vez só,
+    então isso não compete com escrita dos coletores toda hora."""
+    if not _inicializado:
+        _inicializar_schema()
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
-    # WAL: permite leitura (site) e escrita (coletores) acontecendo ao
-    # mesmo tempo sem travar uma a outra — resolve "database is locked"
-    #
-    # Retry: quando várias threads sobem ao mesmo tempo (boot do
-    # servidor), a troca pra modo WAL e criação de tabela podem colidir
-    # momentaneamente — tenta de novo em vez de matar a thread inteira.
-    ultimo_erro = None
-    for tentativa in range(5):
-        try:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=15000")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS mencoes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    topico TEXT NOT NULL,
-                    fonte TEXT NOT NULL,
-                    texto TEXT,
-                    timestamp REAL NOT NULL
-                )
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_topico_ts ON mencoes(topico, timestamp)")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS emails_cadastrados (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT NOT NULL UNIQUE,
-                    timestamp REAL NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS inscricoes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    email TEXT NOT NULL,
-                    timestamp REAL NOT NULL
-                )
-            """)
-            conn.commit()
-            return conn
-        except sqlite3.OperationalError as e:
-            ultimo_erro = e
-            time.sleep(0.3 * (tentativa + 1))
-    raise ultimo_erro
+    conn.execute("PRAGMA busy_timeout=15000")
+    return conn
 
 
 def registrar_email(conn, email):
