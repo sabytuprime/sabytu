@@ -15,6 +15,7 @@ from topicos import TOPICOS
 from collectors.wikipedia_baseline import carregar_baseline, atualizar_baselines
 from collectors.rss_collector import rodar_loop as rodar_rss
 from collectors.bluesky_collector import rodar_loop as rodar_bluesky
+from collectors.mercadolivre_collector import rodar_loop as rodar_consumo
 
 app = Flask(__name__)
 
@@ -144,6 +145,7 @@ def iniciar_coletores_em_background():
     """
     threading.Thread(target=rodar_rss, daemon=True).start()
     threading.Thread(target=rodar_bluesky, daemon=True).start()
+    threading.Thread(target=rodar_consumo, daemon=True).start()
 
     def loop_wiki_e_limpeza():
         while True:
