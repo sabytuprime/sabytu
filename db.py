@@ -14,20 +14,60 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
     # WAL: permite leitura (site) e escrita (coletores) acontecendo ao
     # mesmo tempo sem travar uma a outra — resolve "database is locked"
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=15000")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS mencoes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            topico TEXT NOT NULL,
-            fonte TEXT NOT NULL,
-            texto TEXT,
-            timestamp REAL NOT NULL
+    #
+    # Retry: quando várias threads sobem ao mesmo tempo (boot do
+    # servidor), a troca pra modo WAL e criação de tabela podem colidir
+    # momentaneamente — tenta de novo em vez de matar a thread inteira.
+    ultimo_erro = None
+    for tentativa in range(5):
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=15000")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS mencoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topico TEXT NOT NULL,
+                    fonte TEXT NOT NULL,
+                    texto TEXT,
+                    timestamp REAL NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_topico_ts ON mencoes(topico, timestamp)")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS emails_cadastrados (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE,
+                    timestamp REAL NOT NULL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS inscricoes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL,
+                    timestamp REAL NOT NULL
+                )
+            """)
+            conn.commit()
+            return conn
+        except sqlite3.OperationalError as e:
+            ultimo_erro = e
+            time.sleep(0.3 * (tentativa + 1))
+    raise ultimo_erro
+
+
+def registrar_email(conn, email):
+    try:
+        conn.execute(
+            "INSERT INTO emails_cadastrados (email, timestamp) VALUES (?, ?)",
+            (email.strip().lower(), time.time()),
         )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_topico_ts ON mencoes(topico, timestamp)")
-    conn.commit()
-    return conn
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return True  # já cadastrado, tudo bem, não é erro
+    except Exception as e:
+        print(f"[erro registrar_email] {e}")
+        return False
 
 
 def registrar_mencao(conn, topico, fonte, texto=""):
