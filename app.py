@@ -161,7 +161,9 @@ def iniciar_coletores_em_background():
     Roda os coletores em threads separadas dentro do mesmo processo web.
     """
     threading.Thread(target=rodar_rss, daemon=True).start()
-    threading.Thread(target=rodar_bluesky, daemon=True).start()
+    # DESLIGADO TEMPORARIAMENTE para isolar crash (exit 139 / segfault) —
+    # suspeito é o volume alto do firehose do Bluesky processado via websockets.
+    # threading.Thread(target=rodar_bluesky, daemon=True).start()
     threading.Thread(target=rodar_consumo, daemon=True).start()
     threading.Thread(target=rodar_consumo2, daemon=True).start()
 
