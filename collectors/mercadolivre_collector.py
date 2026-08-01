@@ -92,6 +92,7 @@ def rodar_loop():
 
     while True:
         agora = time.time()
+        conn = None
         try:
             conn = get_conn()
 
@@ -105,6 +106,9 @@ def rodar_loop():
 
         except Exception as e:
             print(f"[erro coletor consumo] {e} — tentando de novo no próximo ciclo")
+        finally:
+            if conn:
+                conn.close()
 
         time.sleep(600)  # checa a cada 10 min se já é hora de rodar algum dos dois
 
