@@ -14,7 +14,7 @@ from db import get_conn, registrar_mencao
 FEEDS = [
 ]
 
-FREQUENCIA_SEGUNDOS = 180  # checa a cada 3 min
+FREQUENCIA_SEGUNDOS = 10 # checa a cada 3 min
 ja_visto = set()  # ids de manchete já processadas (evita duplicar)
 
 
