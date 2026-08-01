@@ -53,11 +53,15 @@ def checar_feeds(conn):
 def rodar_loop():
     print("Coletor RSS iniciado.")
     while True:
+        conn = None
         try:
             conn = get_conn()
             checar_feeds(conn)
         except Exception as e:
             print(f"[erro rodar_loop RSS] {e} — tentando de novo em breve")
+        finally:
+            if conn:
+                conn.close()
         time.sleep(FREQUENCIA_SEGUNDOS)
 
 
