@@ -24,7 +24,7 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (SabytuRadar/1.0; contato@sabytu.com)"}
 URL_MAIS_VENDIDOS = "https://www.mercadolivre.com.br/mais-vendidos"
 URL_TENDENCIAS = "https://tendencias.mercadolivre.com.br/"
 
-FREQ_MAIS_VENDIDOS_SEG = 3 * 3600   # a cada 3h — página reflete venda real, muda mais rápido
+FREQ_MAIS_VENDIDOS_SEG = 5 * 3600   # a cada 5h — equilíbrio entre prudência de acesso e resolução temporal pro Delt-IEt
 FREQ_TENDENCIAS_SEG = 24 * 3600     # 1x/dia — a própria página só atualiza semanalmente
 
 

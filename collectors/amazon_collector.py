@@ -23,7 +23,7 @@ HEADERS = {
 
 URL_MAIS_VENDIDOS = "https://www.amazon.com.br/gp/bestsellers"
 
-FREQ_SEG = 3 * 3600  # a cada 3h — página "atualizada com frequência" segundo o próprio site
+FREQ_SEG = 5 * 3600  # a cada 5h — equilíbrio entre prudência de acesso e resolução temporal pro Delt-IEt
 
 
 def _texto_da_pagina(url):
