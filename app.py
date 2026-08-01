@@ -20,6 +20,17 @@ from collectors.amazon_collector import rodar_loop as rodar_consumo2
 
 app = Flask(__name__)
 
+
+@app.after_request
+def liberar_cors(resposta):
+    """Front-end (sabytu.com, Netlify) e backend (onrender.com) são domínios
+    diferentes — sem isso o navegador bloqueia o fetch do site público."""
+    resposta.headers["Access-Control-Allow-Origin"] = "*"
+    resposta.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    resposta.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resposta
+
+
 JANELA_AGORA_SEGUNDOS = 60 * 60  # última hora, é o que aparece como "score agora"
 
 
