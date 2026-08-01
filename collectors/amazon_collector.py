@@ -54,6 +54,7 @@ def rodar_loop():
     ultima = 0
     while True:
         agora = time.time()
+        conn = None
         try:
             if agora - ultima >= FREQ_SEG:
                 conn = get_conn()
@@ -61,6 +62,9 @@ def rodar_loop():
                 ultima = agora
         except Exception as e:
             print(f"[erro coletor consumo 2] {e} — tentando de novo no próximo ciclo")
+        finally:
+            if conn:
+                conn.close()
         time.sleep(600)
 
 
