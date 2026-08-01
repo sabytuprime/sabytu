@@ -22,8 +22,11 @@ async def coletar():
     posts_vistos = 0
     posts_pt = 0
     ultimo_log = time.time()
+    ultima_renovacao_conn = time.time()
+    RENOVAR_CONN_A_CADA_SEG = 600  # 10 min — evita segurar o WAL aberto por horas
 
     while True:  # loop de reconexão
+        conn = None
         try:
             conn = get_conn()
             async with websockets.connect(JETSTREAM_URL, max_size=2*1024*1024) as ws:
@@ -62,9 +65,22 @@ async def coletar():
                         print(f"  [Bluesky] {posts_vistos} posts, {posts_pt} em pt")
                         ultimo_log = time.time()
 
+                    # renova a conexão periodicamente, mesmo sem reconectar
+                    # o websocket — evita segurar o WAL aberto por horas
+                    if time.time() - ultima_renovacao_conn > RENOVAR_CONN_A_CADA_SEG:
+                        conn.close()
+                        conn = get_conn()
+                        ultima_renovacao_conn = time.time()
+
         except Exception as e:
             print(f"  [Bluesky] conexão caiu ({e}), reconectando em 5s...")
             await asyncio.sleep(5)
+        finally:
+            # ESSENCIAL: fecha a conexão antes de reconectar — sem isso,
+            # cada reconexão vazava uma conexão SQLite pra sempre, e isso
+            # travava o WAL, causando "database is locked" com o tempo.
+            if conn:
+                conn.close()
 
 
 def rodar_loop():
