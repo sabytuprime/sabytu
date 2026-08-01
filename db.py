@@ -115,6 +115,39 @@ def contar_mencoes_baseline(conn, topico, dias=7):
     return total / horas if horas > 0 else 0
 
 
+def detectar_convergencia(conn, topico, janela_horas=6):
+    """
+    O 'Convergência' — não é volume, é DIVERSIDADE de fonte.
+    Verifica se o mesmo tema foi confirmado por fontes de natureza
+    DIFERENTE na mesma janela: comentário (bluesky/rss) E comportamento
+    de compra (mercado livre/amazon) ao mesmo tempo.
+
+    Isso é mais raro e mais forte que só volume alto numa fonte só —
+    é a peça que faltava pro Delt-IEt fazer sentido de verdade.
+    """
+    limite = time.time() - janela_horas * 3600
+
+    FONTES_COMENTARIO = ("bluesky", "rss")
+    FONTES_COMPRA = ("fonte_consumo_1", "fonte_consumo_2", "fonte_consumo_3")
+
+    placeholders_comentario = ",".join("?" * len(FONTES_COMENTARIO))
+    placeholders_compra = ",".join("?" * len(FONTES_COMPRA))
+
+    cur = conn.execute(
+        f"SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND fonte IN ({placeholders_comentario})",
+        (topico, limite, *FONTES_COMENTARIO),
+    )
+    tem_comentario = cur.fetchone()[0] > 0
+
+    cur = conn.execute(
+        f"SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND fonte IN ({placeholders_compra})",
+        (topico, limite, *FONTES_COMPRA),
+    )
+    tem_compra = cur.fetchone()[0] > 0
+
+    return tem_comentario and tem_compra
+
+
 def calcular_aceleracao(conn, topico, janela_min=30):
     """
     Detecção real de aceleração — não é o Delt-IEt completo, mas é
