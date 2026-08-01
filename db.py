@@ -87,11 +87,15 @@ def registrar_email(conn, email):
 
 
 def registrar_mencao(conn, topico, fonte, texto=""):
-    conn.execute(
-        "INSERT INTO mencoes (topico, fonte, texto, timestamp) VALUES (?, ?, ?, ?)",
-        (topico, fonte, texto[:200], time.time()),
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            "INSERT INTO mencoes (topico, fonte, texto, timestamp) VALUES (?, ?, ?, ?)",
+            (topico, fonte, texto[:200], time.time()),
+        )
+        conn.commit()
+        print(f"✅ GRAVOU: {topico} ({fonte})")
+    except Exception as e:
+        print(f"❌ ERRO AO GRAVAR: {e}")
 
 
 def contar_mencoes(conn, topico, janela_segundos):
