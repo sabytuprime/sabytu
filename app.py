@@ -7,11 +7,6 @@ sem nenhuma fórmula proprietária aqui — 100% defensável e auditável).
 import threading
 import time
 import os
-import sys
-import faulthandler
-
-faulthandler.enable()
-faulthandler.dump_traceback_later(20, repeat=True, file=sys.stderr)
 
 from flask import Flask, jsonify, request
 
