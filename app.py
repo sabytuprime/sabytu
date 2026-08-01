@@ -180,7 +180,7 @@ def iniciar_coletores_em_background():
     threading.Thread(target=loop_wiki_e_limpeza, daemon=True).start()
 
 
-# iniciar_coletores_em_background()
+threading.Thread(target=rodar_rss, daemon=True).start()
 
 
 if __name__ == "__main__":
