@@ -10,7 +10,7 @@ import os
 
 from flask import Flask, jsonify, request
 
-from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao, registrar_mencao
+from db import get_conn, contar_mencoes, contar_mencoes_baseline, limpar_antigos, calcular_aceleracao, registrar_mencao, detectar_convergencia
 from topicos import TOPICOS
 from collectors.wikipedia_baseline import carregar_baseline, atualizar_baselines
 from collectors.rss_collector import rodar_loop as rodar_rss
@@ -30,17 +30,15 @@ def calcular_score(contagem_agora, baseline_hora):
     Sem entropia, sem aceleração — só proporção real, defensável.
     """
     if baseline_hora <= 0:
-        # sem histórico suficiente ainda: usa contagem bruta capada em 100
         return min(100, contagem_agora * 10)
-
     razao = contagem_agora / baseline_hora
-    # mapeia razão (0x a 5x+ o normal) pra escala 0-100
     score = min(100, int(razao * 20))
     return score
 
 
 @app.route("/api/radar")
 def api_radar():
+    conn = None
     try:
         conn = get_conn()
         resultado = []
@@ -50,6 +48,7 @@ def api_radar():
             baseline_hora = contar_mencoes_baseline(conn, slug, dias=7)
             score = calcular_score(contagem_hora, baseline_hora)
             acelerando = calcular_aceleracao(conn, slug)
+            convergencia = detectar_convergencia(conn, slug)
 
             resultado.append({
                 "slug": slug,
@@ -59,6 +58,7 @@ def api_radar():
                 "mencoes_ultima_hora": contagem_hora,
                 "media_historica_hora": round(baseline_hora, 1),
                 "acelerando": acelerando,
+                "convergencia": convergencia,
             })
 
         resultado.sort(key=lambda x: x["score"], reverse=True)
@@ -68,14 +68,17 @@ def api_radar():
             "topicos": resultado,
         })
     except Exception as e:
-        # nunca deixa o site quebrar por causa de um erro momentâneo de banco
         print(f"[erro /api/radar] {e}")
         return jsonify({"atualizado_em": time.time(), "topicos": [], "aviso": "temporariamente indisponivel"}), 200
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/status")
 def api_status():
     """Endpoint de diagnóstico — útil pra você conferir se os coletores estão vivos."""
+    conn = None
     try:
         conn = get_conn()
         total = conn.execute("SELECT COUNT(*) FROM mencoes").fetchone()[0]
@@ -87,6 +90,9 @@ def api_status():
     except Exception as e:
         print(f"[erro /api/status] {e}")
         return jsonify({"erro": "temporariamente indisponivel"}), 200
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/coleta-agente", methods=["POST"])
@@ -97,6 +103,7 @@ def api_coleta_agente():
     Mesmo padrão dos coletores automáticos — grava como menção real,
     com fonte identificada, pra manter rastreabilidade de onde veio.
     """
+    conn = None
     try:
         data = request.get_json(force=True, silent=True) or {}
         topico = (data.get("topico") or "").strip().lower()
@@ -114,10 +121,14 @@ def api_coleta_agente():
     except Exception as e:
         print(f"[erro /api/coleta-agente] {e}")
         return jsonify({"ok": False, "erro": "temporariamente indisponivel"}), 200
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/api/inscrever", methods=["POST"])
 def api_inscrever():
+    conn = None
     try:
         data = request.get_json(force=True, silent=True) or {}
         email = (data.get("email") or "").strip()
@@ -130,6 +141,9 @@ def api_inscrever():
     except Exception as e:
         print(f"[erro /api/inscrever] {e}")
         return jsonify({"ok": False, "erro": "temporariamente indisponivel"}), 200
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route("/")
@@ -140,9 +154,6 @@ def home():
 def iniciar_coletores_em_background():
     """
     Roda os coletores em threads separadas dentro do mesmo processo web.
-    Isso funciona no Render num plano simples (1 serviço só). Se o volume
-    crescer, migrar RSS/Bluesky pra um Background Worker separado é o
-    próximo passo — mas pra começar, isso já entrega dado real.
     """
     threading.Thread(target=rodar_rss, daemon=True).start()
     threading.Thread(target=rodar_bluesky, daemon=True).start()
@@ -155,16 +166,20 @@ def iniciar_coletores_em_background():
                 atualizar_baselines()
             except Exception as e:
                 print(f"[erro baseline wiki] {e}")
+            conn = None
             try:
-                limpar_antigos(get_conn())
+                conn = get_conn()
+                limpar_antigos(conn)
             except Exception as e:
                 print(f"[erro limpeza] {e}")
+            finally:
+                if conn:
+                    conn.close()
             time.sleep(24 * 3600)  # 1x por dia
 
     threading.Thread(target=loop_wiki_e_limpeza, daemon=True).start()
 
 
-# inicia os coletores assim que o app sobe (funciona com gunicorn também)
 iniciar_coletores_em_background()
 
 
