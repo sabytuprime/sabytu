@@ -26,7 +26,7 @@ async def coletar():
     while True:  # loop de reconexão
         try:
             conn = get_conn()
-            async with websockets.connect(JETSTREAM_URL, max_size=None) as ws:
+            async with websockets.connect(JETSTREAM_URL, max_size=2*1024*1024) as ws:
                 print("Bluesky Jetstream conectado.")
                 while True:
                     raw = await asyncio.wait_for(ws.recv(), timeout=30)
