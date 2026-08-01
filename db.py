@@ -15,19 +15,30 @@ _lock_inicializacao = threading.Lock()
 
 
 def _inicializar_schema():
-    """Cria as tabelas, uma única vez por processo — não a cada conexão.
-    Isso é o que estava causando disputa constante pelo banco: antes,
-    toda chamada de get_conn() tentava recriar as tabelas de novo."""
     global _inicializado
+
+    print("1")
     with _lock_inicializacao:
+        print("2")
+
         if _inicializado:
+            print("3")
             return
+
+        print("4")
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+        print("5")
         conn = sqlite3.connect(DB_PATH, timeout=15)
+
+        print("6")
+
         for tentativa in range(5):
+            print("7")
+
             try:
-             #   conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA busy_timeout=15000")
+                print("8")
+
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS mencoes (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,28 +48,23 @@ def _inicializar_schema():
                         timestamp REAL NOT NULL
                     )
                 """)
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_topico_ts ON mencoes(topico, timestamp)")
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS emails_cadastrados (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        email TEXT NOT NULL UNIQUE,
-                        timestamp REAL NOT NULL
-                    )
-                """)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS inscricoes (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        email TEXT NOT NULL,
-                        timestamp REAL NOT NULL
-                    )
-                """)
+
+                print("9")
+
                 conn.commit()
+
+                print("10")
+
                 conn.close()
+
+                print("11")
+
                 _inicializado = True
                 return
-            except sqlite3.OperationalError:
-                time.sleep(0.3 * (tentativa + 1))
-        conn.close()
+
+            except Exception as e:
+                print("ERRO:", e)
+                time.sleep(1)
 
 
 def get_conn():
