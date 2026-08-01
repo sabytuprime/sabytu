@@ -1,7 +1,3 @@
-"""
-Banco de dados SQLite simples — armazena cada menção capturada,
-com timestamp e fonte, pra depois calcular contagem por janela.
-"""
 import sqlite3
 import os
 import time
@@ -9,84 +5,77 @@ import threading
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "sabytu.db")
 
-
 _inicializado = False
-_lock_inicializacao = threading.Lock()
+_lock = threading.Lock()
 
 
 def _inicializar_schema():
     global _inicializado
 
-    print("1")
-    with _lock_inicializacao:
-        print("2")
-
+    with _lock:
         if _inicializado:
-            print("3")
             return
 
-        print("4")
+        print("Inicializando schema...")
+
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-        print("5")
         conn = sqlite3.connect(DB_PATH, timeout=15)
 
-        print("6")
+        try:
+            cur = conn.cursor()
 
-        for tentativa in range(5):
-            print("7")
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS mencoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topico TEXT NOT NULL,
+                fonte TEXT NOT NULL,
+                texto TEXT,
+                timestamp REAL NOT NULL
+            )
+            """)
 
-            try:
-                print("8")
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS emails_cadastrados (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE,
+                timestamp REAL NOT NULL
+            )
+            """)
 
-                print("ANTES DO CREATE")
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS inscricoes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT,
+                timestamp REAL NOT NULL
+            )
+            """)
 
-cur = conn.cursor()
+            cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_topico_ts
+            ON mencoes(topico, timestamp)
+            """)
 
-cur.execute("""
-    CREATE TABLE IF NOT EXISTS mencoes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        topico TEXT NOT NULL,
-        fonte TEXT NOT NULL,
-        texto TEXT,
-        timestamp REAL NOT NULL
-    )
-""")
+            conn.commit()
+            print("Schema criado.")
 
-print("DEPOIS DO CREATE")
+            _inicializado = True
 
-                print("9")
-
-                conn.commit()
-
-                print("10")
-
-                conn.close()
-
-                print("11")
-
-                _inicializado = True
-                return
-
-            except Exception as e:
-                print("ERRO:", e)
-                time.sleep(1)
+        finally:
+            conn.close()
 
 
 def get_conn():
-    print("Entrou em get_conn()")
-
     if not _inicializado:
-        print("Inicializando schema...")
         _inicializar_schema()
-        print("Schema inicializado.")
 
-    print("Abrindo sqlite...")
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
-    print("SQLite aberto.")
+    conn = sqlite3.connect(
+        DB_PATH,
+        timeout=15,
+        check_same_thread=False
+    )
 
     conn.execute("PRAGMA busy_timeout=15000")
-    print("Pragma OK.")
 
     return conn
 
@@ -94,113 +83,106 @@ def get_conn():
 def registrar_email(conn, email):
     try:
         conn.execute(
-            "INSERT INTO emails_cadastrados (email, timestamp) VALUES (?, ?)",
-            (email.strip().lower(), time.time()),
+            "INSERT INTO emails_cadastrados(email,timestamp) VALUES(?,?)",
+            (email.strip().lower(), time.time())
         )
         conn.commit()
         return True
+
     except sqlite3.IntegrityError:
-        return True  # já cadastrado, tudo bem, não é erro
+        return True
+
     except Exception as e:
-        print(f"[erro registrar_email] {e}")
+        print(e)
         return False
 
 
 def registrar_mencao(conn, topico, fonte, texto=""):
     try:
         conn.execute(
-            "INSERT INTO mencoes (topico, fonte, texto, timestamp) VALUES (?, ?, ?, ?)",
-            (topico, fonte, texto[:200], time.time()),
+            "INSERT INTO mencoes(topico,fonte,texto,timestamp) VALUES(?,?,?,?)",
+            (topico, fonte, texto[:200], time.time())
         )
         conn.commit()
-        print(f"✅ GRAVOU: {topico} ({fonte})")
+        print(f"GRAVOU: {topico} ({fonte})")
+
     except Exception as e:
-        print(f"❌ ERRO AO GRAVAR: {e}")
+        print("ERRO:", e)
 
 
 def contar_mencoes(conn, topico, janela_segundos):
     limite = time.time() - janela_segundos
+
     cur = conn.execute(
-        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ?",
-        (topico, limite),
+        "SELECT COUNT(*) FROM mencoes WHERE topico=? AND timestamp>=?",
+        (topico, limite)
     )
+
     return cur.fetchone()[0]
 
 
 def contar_mencoes_baseline(conn, topico, dias=7):
-    """Média de menções por hora nos últimos N dias, pra normalizar o score."""
     limite = time.time() - dias * 86400
+
     cur = conn.execute(
-        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ?",
-        (topico, limite),
+        "SELECT COUNT(*) FROM mencoes WHERE topico=? AND timestamp>=?",
+        (topico, limite)
     )
+
     total = cur.fetchone()[0]
-    horas = dias * 24
-    return total / horas if horas > 0 else 0
+
+    return total / (dias * 24)
 
 
 def detectar_convergencia(conn, topico, janela_horas=6):
-    """
-    O 'Convergência' — não é volume, é DIVERSIDADE de fonte.
-    Verifica se o mesmo tema foi confirmado por fontes de natureza
-    DIFERENTE na mesma janela: comentário (bluesky/rss) E comportamento
-    de compra (mercado livre/amazon) ao mesmo tempo.
 
-    Isso é mais raro e mais forte que só volume alto numa fonte só —
-    é a peça que faltava pro Delt-IEt fazer sentido de verdade.
-    """
     limite = time.time() - janela_horas * 3600
 
-    FONTES_COMENTARIO = ("bluesky", "rss")
-    FONTES_COMPRA = ("fonte_consumo_1", "fonte_consumo_2", "fonte_consumo_3")
+    cur = conn.execute("""
+        SELECT COUNT(DISTINCT fonte)
+        FROM mencoes
+        WHERE topico=?
+        AND timestamp>=?
+    """, (topico, limite))
 
-    placeholders_comentario = ",".join("?" * len(FONTES_COMENTARIO))
-    placeholders_compra = ",".join("?" * len(FONTES_COMPRA))
-
-    cur = conn.execute(
-        f"SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND fonte IN ({placeholders_comentario})",
-        (topico, limite, *FONTES_COMENTARIO),
-    )
-    tem_comentario = cur.fetchone()[0] > 0
-
-    cur = conn.execute(
-        f"SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND fonte IN ({placeholders_compra})",
-        (topico, limite, *FONTES_COMPRA),
-    )
-    tem_compra = cur.fetchone()[0] > 0
-
-    return tem_comentario and tem_compra
+    return cur.fetchone()[0] >= 2
 
 
 def calcular_aceleracao(conn, topico, janela_min=30):
-    """
-    Detecção real de aceleração — não é o Delt-IEt completo, mas é
-    inspirado na mesma ideia: compara a TAXA de menções da janela
-    atual com a taxa da janela anterior (a "derivada", não só o volume).
-    Retorna True se a taxa mais que dobrou entre as duas janelas.
-    """
+
     agora = time.time()
-    janela_seg = janela_min * 60
+    janela = janela_min * 60
 
     cur = conn.execute(
-        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ?",
-        (topico, agora - janela_seg),
+        "SELECT COUNT(*) FROM mencoes WHERE topico=? AND timestamp>=?",
+        (topico, agora - janela)
     )
+
     atual = cur.fetchone()[0]
 
     cur = conn.execute(
-        "SELECT COUNT(*) FROM mencoes WHERE topico = ? AND timestamp >= ? AND timestamp < ?",
-        (topico, agora - 2 * janela_seg, agora - janela_seg),
+        """SELECT COUNT(*) FROM mencoes
+        WHERE topico=?
+        AND timestamp>=?
+        AND timestamp<?""",
+        (topico, agora - 2 * janela, agora - janela)
     )
+
     anterior = cur.fetchone()[0]
 
     if anterior == 0:
-        return atual >= 3  # sem base de comparação: só marca se já tem volume mínimo
-    return (atual / anterior) >= 2.0
+        return atual >= 3
+
+    return atual / anterior >= 2
 
 
 def limpar_antigos(conn, dias=14):
-    """Remove menções mais velhas que N dias, pra não crescer pra sempre."""
+
     limite = time.time() - dias * 86400
-    conn.execute("DELETE FROM mencoes WHERE timestamp < ?", (limite,))
+
+    conn.execute(
+        "DELETE FROM mencoes WHERE timestamp<?",
+        (limite,)
+    )
+
     conn.commit()
