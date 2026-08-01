@@ -26,7 +26,7 @@ def _inicializar_schema():
         conn = sqlite3.connect(DB_PATH, timeout=15)
         for tentativa in range(5):
             try:
-                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA journal_mode=DELETE")
                 conn.execute("PRAGMA busy_timeout=15000")
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS mencoes (
