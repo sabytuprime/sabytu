@@ -62,12 +62,20 @@ def _inicializar_schema():
 
 
 def get_conn():
-    """Abre uma conexão leve. O schema já foi criado uma vez só,
-    então isso não compete com escrita dos coletores toda hora."""
+    print("Entrou em get_conn()")
+
     if not _inicializado:
+        print("Inicializando schema...")
         _inicializar_schema()
+        print("Schema inicializado.")
+
+    print("Abrindo sqlite...")
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=15)
+    print("SQLite aberto.")
+
     conn.execute("PRAGMA busy_timeout=15000")
+    print("Pragma OK.")
+
     return conn
 
 
