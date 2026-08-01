@@ -39,15 +39,21 @@ def _inicializar_schema():
             try:
                 print("8")
 
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS mencoes (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        topico TEXT NOT NULL,
-                        fonte TEXT NOT NULL,
-                        texto TEXT,
-                        timestamp REAL NOT NULL
-                    )
-                """)
+                print("ANTES DO CREATE")
+
+cur = conn.cursor()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS mencoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topico TEXT NOT NULL,
+        fonte TEXT NOT NULL,
+        texto TEXT,
+        timestamp REAL NOT NULL
+    )
+""")
+
+print("DEPOIS DO CREATE")
 
                 print("9")
 
